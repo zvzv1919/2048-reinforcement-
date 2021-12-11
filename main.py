@@ -28,4 +28,5 @@ if __name__ == '__main__':
     moves_arr.append(moves)
 
     print('\nTotal Moves: {}'.format(moves))
+    print(np.max(next_state))
   print("Average Moves for {runs} runs with {model_name}: {moves}".format(model_name = model_name, runs = num_runs, moves = sum(moves_arr)/len(moves_arr)))
