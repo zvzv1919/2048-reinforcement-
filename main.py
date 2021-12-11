@@ -7,6 +7,7 @@ num_runs = 10
 model = randommodel
 
 if __name__ == '__main__':
+  model_name = model.name
   model = model.Model()
   env = gym.make('2048-v0')
   model.train(env)
@@ -27,4 +28,4 @@ if __name__ == '__main__':
     moves_arr.append(moves)
 
     print('\nTotal Moves: {}'.format(moves))
-  print("Average Moves for {runs} runs: {moves}".format(runs = num_runs, moves = sum(moves_arr)/len(moves_arr)))
+  print("Average Moves for {runs} runs with {model_name}: {moves}".format(model_name = model_name, runs = num_runs, moves = sum(moves_arr)/len(moves_arr)))
