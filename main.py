@@ -4,6 +4,7 @@ import numpy as np
 import randommodel
 import greedy_model
 import mcts_model_vanilla
+import mcts_model_table
 
 num_runs = 50
 model = mcts_model_vanilla

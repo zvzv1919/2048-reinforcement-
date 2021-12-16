@@ -6,10 +6,10 @@ import math
 import collections
 from multiprocessing import Pool
 
-name = 'mcts model'
+name = 'mcts model vanilla'
 
-explore_width = 5
-explore_depth = 15
+explore_width = 10
+explore_depth = 30
 action_space = [0,1,2,3]
 
 class Model():
@@ -21,7 +21,7 @@ class Model():
         action_sequence = action_space
         with Pool(processes=len(action_sequence)) as pool:
             #TODO: Exploitation should consider the randomness, add exploitation depth
-            action_values = (pool.starmap(evaluate_action, [(env, action) for action in action_sequence]))
+            action_values = pool.starmap(evaluate_action, [(env, action) for action in action_sequence])
         return action_sequence[np.argmax(action_values)]
 
     def train(self, env):
