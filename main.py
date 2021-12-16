@@ -5,7 +5,7 @@ import randommodel
 import greedy_model
 import mcts_model
 
-num_runs = 100
+num_runs = 10
 model = mcts_model
 
 if __name__ == '__main__':

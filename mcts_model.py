@@ -3,36 +3,35 @@ import gym
 import numpy as np
 import copy
 import math
+import collections
+from multiprocessing import Pool
 
 name = 'mcts model'
 
 explore_width = 5
 explore_depth = 15
-
+action_space = [0,1,2,3]
 
 class Model():
     def __init__(self):
         #TODO: make this LRU_cache
-        self.mem = {}
+        self.mem = collections.defaultdict(int)
 
     def predict(self, env):
-        virtual_env = gym_2048.Game2048Env()
-        greedy_action = 0
-        greedy_score = float('-inf')
-        for action in range(4):
-            virtual_env.set_board(copy.deepcopy(env.get_board()))
-            next_state, reward, done, info = virtual_env.step(action)
-            score = evaluate_state(virtual_env)
-            if score > greedy_score:
-                greedy_score = score
-                greedy_action = action
-        # env.render()
-        # print(greedy_action)
-        return greedy_action
+        action_sequence = action_space
+        with Pool(processes=len(action_sequence)) as pool:
+            #TODO: Exploitation should consider the randomness, add exploitation depth
+            action_values = (pool.starmap(evaluate_action, [(env, action) for action in action_sequence]))
+        return action_sequence[np.argmax(action_values)]
 
     def train(self, env):
         pass
 
+def evaluate_action(env, action):
+    virtual_env = gym_2048.Game2048Env()
+    virtual_env.set_board(copy.deepcopy(env.get_board()))
+    virtual_env.step(action)
+    return evaluate_state(virtual_env)
 
 def evaluate_state(env):
     # TODO: add heuristics
@@ -40,14 +39,20 @@ def evaluate_state(env):
     scores = []
     for i in range(explore_width):
         virtual_env.set_board(copy.deepcopy(env.get_board()))
-        for j in range(explore_depth):
+        virtual_env.steps = 0
+
+        while virtual_env.steps < explore_depth:
             # Randomly choose action in explore mode
             action = np.random.randint(0,4)
             next_state, _, done, info = virtual_env.step(action)
             if done:
+                # Only record number of legal steps
                 scores.append(virtual_env.steps)
                 break
-        scores.append(explore_depth * 0.5 + virtual_env.steps)
+        # Add additional reward if the trail does not meet end state
+        if len(scores) <= i:
+            scores.append(explore_depth * 0.5 + virtual_env.steps)
+
     return sum(scores) / len(scores) + max(scores)
 #
 # def mat_to_hash(matrix):
