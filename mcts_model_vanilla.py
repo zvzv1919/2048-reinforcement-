@@ -28,6 +28,7 @@ class Model():
         pass
 
 def evaluate_action(env, action):
+    # print("jaja, {}".format(env.steps))
     virtual_env = gym_2048.Game2048Env()
     virtual_env.set_board(copy.deepcopy(env.get_board()))
     virtual_env.step(action)
