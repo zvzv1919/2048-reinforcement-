@@ -1,0 +1,4 @@
+stable-baselines3
+gym==0.10.0
+tensorflow==1.15.0
+numpy==1.15.4
