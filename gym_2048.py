@@ -58,7 +58,8 @@ class Game2048Env(gym.Env):  # directions 0, 1, 2, 3 are up, right, down, left
         # Suppose that the maximum tile is as if you have powers of 2 across the board.
         layers = self.squares
         self.observation_space = spaces.Box(0, 1, (self.w, self.h, layers), dtype=np.int)
-        self.set_illegal_move_reward(-1)
+        self.illegal_move_reward = -1
+        self.reward_range = (self.illegal_move_reward, float(2 ** self.squares))
         self.set_max_tile(None)
 
         self.max_illegal = 10000  # max number of illegal actions
@@ -84,14 +85,6 @@ class Game2048Env(gym.Env):  # directions 0, 1, 2, 3 are up, right, down, left
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
-
-    def set_illegal_move_reward(self, reward):
-        """Define the reward/penalty for performing an illegal move. Also need
-            to update the reward range for this."""
-        # Guess that the maximum reward is also 2**squares though you'll probably never get that.
-        # (assume that illegal move reward is the lowest value that can be returned
-        self.illegal_move_reward = reward
-        self.reward_range = (self.illegal_move_reward, float(2 ** self.squares))
 
     def set_max_tile(self, max_tile):
         """Define the maximum tile that will end the game (e.g. 2048). None means no limit.
@@ -299,6 +292,19 @@ class Game2048Env(gym.Env):  # directions 0, 1, 2, 3 are up, right, down, left
             except IllegalMove:
                 pass
         return True
+
+    def legal_actions(self):
+        res = []
+        for action in range(4):
+            try:
+                self.move(action, trial=True)
+                # Not the end if we can do any move
+                res.append(action)
+            except IllegalMove:
+                continue
+        return res
+
+
 
     def get_board(self):
         """Retrieve the whole board, useful for testing."""

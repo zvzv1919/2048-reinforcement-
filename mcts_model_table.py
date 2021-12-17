@@ -9,7 +9,7 @@ import threading
 
 name = 'mcts model table'
 
-explore_width = 5
+explore_width = 8
 explore_depth = 15
 learning_rate = 0.4
 action_space = [0,1,2,3]
@@ -31,6 +31,7 @@ class Model():
             t.join()
         # env.render()
         # print(action_values)
+
         return np.argmax(action_values)
 
     def train(self, env):
@@ -49,7 +50,13 @@ def evaluate_action(mem, env, action, action_values, lock):
         score = 0
 
         # The first action would be the one specified
-        _, _, done, _ = virtual_env.step(action)
+        _, reward, done, _ = virtual_env.step(action)
+
+        # If action is illegal, set value to 0
+        if reward == -1:
+            action_values[action] = 0
+            return
+
         while virtual_env.steps < explore_depth:
             if done:
                 break
@@ -61,13 +68,20 @@ def evaluate_action(mem, env, action, action_values, lock):
 
             # Randomly choose successive action in explore mode
             explore_action = np.random.randint(0, 4)
-            _, _, done, _ = virtual_env.step(explore_action)
+
+            # # If the previous move is illegal, try to choose between legal moves
+            # if reward == env.illegal_move_reward:
+            #     # Avoid calling legal_actions() twice as it is expansive
+            #     legal_actions = env.legal_actions()
+            #     explore_action = legal_actions[np.random.randint(0, len(legal_actions))]
+
+            _, reward, done, _ = virtual_env.step(explore_action)
 
         score = mem[mat_to_hash(virtual_env.get_board())]
         if not done and score == 0:
             # initialize current state score to non-zero value
-            mem[mat_to_hash(virtual_env.get_board())]=explore_depth*0.3
-            score = explore_depth*0.3
+            mem[mat_to_hash(virtual_env.get_board())]=explore_depth*0.2
+            score = explore_depth*0.2
 
         # Back propagates reward to all states visited in this trial
         for state in states[::-1]:
