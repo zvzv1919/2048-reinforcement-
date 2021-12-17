@@ -81,12 +81,13 @@ def evaluate_state(env):
 
         while virtual_env.steps < explore_depth:
             # Randomly choose action in explore mode
-            action = np.random.randint(0,4)
-            next_state, _, done, info = virtual_env.step(action)
             if done:
                 # Only record number of legal steps
                 scores.append(virtual_env.steps)
                 break
+            action = np.random.randint(0,4)
+            next_state, _, done, info = virtual_env.step(action)
+
         # Add additional reward if the trail does not meet end state
         if len(scores) <= i:
             scores.append(explore_depth * 0.5 + virtual_env.steps)
