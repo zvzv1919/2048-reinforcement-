@@ -7,7 +7,7 @@ import mcts_model_vanilla
 import mcts_model_table
 
 num_runs = 50
-model = mcts_model_vanilla
+model = mcts_model_table
 
 if __name__ == '__main__':
   model_name = model.name
