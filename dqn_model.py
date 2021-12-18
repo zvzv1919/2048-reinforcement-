@@ -126,9 +126,11 @@ if __name__ == '__main__':
         score = 0
         done = False
         observation,_,_,_  = env.reset()
+        observation = observation.reshape(-1)
         while not done:
             action = agent.predict(observation)
             observation_, reward, done, info = env.step(action)
+            observation_ = observation_.reshape(-1)
             score += reward
             agent.store_transition(observation, action, reward,
                                     observation_, done)
