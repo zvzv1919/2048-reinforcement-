@@ -114,12 +114,11 @@ class Model:
         self.epsilon = self.epsilon - self.eps_dec \
             if self.epsilon > self.eps_min else self.eps_min
 
-
 if __name__ == '__main__':
     env = Game2048Env()
     agent = Model(gamma=0.99, epsilon=1.0, batch_size=64, n_actions=4, eps_end=0.01,
                   input_dims=[env.observation_space.shape[-1]], lr=0.001)
-    scores, eps_history = [], []
+    scores, step_history = [], []
     n_games = 500
 
     for i in range(n_games):
@@ -137,13 +136,11 @@ if __name__ == '__main__':
             agent.learn()
             observation = observation_
         scores.append(score)
-        eps_history.append(agent.epsilon)
+        step_history.append(env.steps)
 
         avg_score = np.mean(scores[-100:])
 
         print('episode ', i, 'score %.2f' % score,
                 'average score %.2f' % avg_score,
-                'epsilon %.2f' % agent.epsilon)
+                'steps %.2f' % env.steps)
     x = [i+1 for i in range(n_games)]
-    filename = 'lunar_lander.png'
-    plotLearning(x, scores, eps_history, filename)
