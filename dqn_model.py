@@ -21,14 +21,14 @@ class DeepQNetwork(nn.Module):
         self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims)
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims)
         self.fc3 = nn.Linear(self.fc2_dims, self.n_actions)
-
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.loss = nn.MSELoss()
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def forward(self, state):
-        x = F.relu(self.fc1(state))
+        # state = state.view(64,3,3)
+        x = F.relu(self.fc1(state.float()))
         x = F.relu(self.fc2(x))
         actions = self.fc3(x)
 
@@ -72,7 +72,7 @@ class Model:
 
     def predict(self, observation):
         if np.random.random() > self.epsilon:
-            state = T.tensor([observation]).to(self.Q_eval.device)
+            state = T.tensor([observation]).to(self.Q_eval.device).float()
             actions = self.Q_eval.forward(state)
             action = T.argmax(actions).item()
         else:
@@ -118,10 +118,10 @@ class Model:
 if __name__ == '__main__':
     env = Game2048Env()
     agent = Model(gamma=0.99, epsilon=1.0, batch_size=64, n_actions=4, eps_end=0.01,
-                  input_dims=env.observation_space.shape, lr=0.001)
+                  input_dims=[env.observation_space.shape[-1]], lr=0.001)
     scores, eps_history = [], []
     n_games = 500
-    
+
     for i in range(n_games):
         score = 0
         done = False
@@ -130,7 +130,7 @@ if __name__ == '__main__':
             action = agent.predict(observation)
             observation_, reward, done, info = env.step(action)
             score += reward
-            agent.store_transition(observation, action, reward, 
+            agent.store_transition(observation, action, reward,
                                     observation_, done)
             agent.learn()
             observation = observation_
@@ -145,5 +145,3 @@ if __name__ == '__main__':
     x = [i+1 for i in range(n_games)]
     filename = 'lunar_lander.png'
     plotLearning(x, scores, eps_history, filename)
-
-
