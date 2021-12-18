@@ -6,12 +6,14 @@ import math
 import collections
 from multiprocessing import Pool
 import threading
+import json
 
 name = 'mcts model table'
 
-explore_width = 8
-explore_depth = 15
-learning_rate = 0.4
+explore_width = 10
+explore_depth = 20
+training_episode = 600
+learning_rate = 0.3
 action_space = [0,1,2,3]
 
 class Model():
@@ -34,8 +36,42 @@ class Model():
 
         return np.argmax(action_values)
 
-    def train(self, env):
+    def train(self, env, load = None, save = None):
+        if load is not None:
+            self.load_model(load)
+
+        moves_arr = []
+        score_arr = []
+        for i in range(training_episode):
+            env.reset()
+            done = False
+            while not done:
+                action = self.predict(env)
+                next_state, reward, done, info = env.step(action)
+
+                # print('Next Action: "{}"\n\nReward: {}'.format(gym_2048.Base2048Env.ACTION_STRING[action], reward))
+                # env.render()
+            moves_arr.append(env.steps)
+            score_arr.append(env.score)
+            # env.render()
+            print("training progress: {i}/{training_episode}".format(i=i+1, training_episode=training_episode))
+
+        if save is not None:
+            f = open("training_log:{}".format(save), "w")
+            json.dump({"moves_arr":moves_arr, "score_arr":score_arr}, f)
+            f.close()
+            self.model_save(save)
         pass
+
+    def model_save(self, file_name):
+        f = open("{}.json".format(file_name), 'w')
+        json.dump(self.mem, f)
+        f.close()
+
+    def load_model(self, file_name):
+        f = open("{}.json".format(file_name), 'r')
+        self.mem = collections.defaultdict(int, json.load(f))
+        f.close()
 
 def evaluate_action(mem, env, action, action_values, lock):
     # print("jaja, {}".format(env.steps))
@@ -48,6 +84,7 @@ def evaluate_action(mem, env, action, action_values, lock):
         states = [mat_to_hash(virtual_env.get_board())]
         done = False
         score = 0
+        illegal_actions = set() #Used to remember illegal actions for the current exploration step
 
         # The first action would be the one specified
         _, reward, done, _ = virtual_env.step(action)
@@ -69,13 +106,17 @@ def evaluate_action(mem, env, action, action_values, lock):
             # Randomly choose successive action in explore mode
             explore_action = np.random.randint(0, 4)
 
-            # # If the previous move is illegal, try to choose between legal moves
-            # if reward == env.illegal_move_reward:
-            #     # Avoid calling legal_actions() twice as it is expansive
-            #     legal_actions = env.legal_actions()
-            #     explore_action = legal_actions[np.random.randint(0, len(legal_actions))]
+            # If the previous move is illegal, try to choose between legal moves
+            if reward == env.illegal_move_reward:
+                while explore_action in illegal_actions:
+                    explore_action = np.random.randint(0, 4)
 
             _, reward, done, _ = virtual_env.step(explore_action)
+
+            if reward == env.illegal_move_reward:
+                illegal_actions.add(explore_action)
+            else:
+                illegal_actions = set()
 
         score = mem[mat_to_hash(virtual_env.get_board())]
         if not done and score == 0:
