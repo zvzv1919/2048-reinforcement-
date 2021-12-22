@@ -2,7 +2,7 @@ import os
 import numpy as np
 import torch as T
 import torch.nn as nn
-import torch.nn.functional as F
+from torch.nn.modules import padding
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
 
@@ -49,38 +49,33 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=1024, fc2_dims=128, chkpt_dir='tmp/ppo'):
+    def __init__(self, n_actions, input_dims, alpha, conv_size=(32, 64), fc_size=(1024, 128),chkpt_dir='tmp/ppo'):
         super(ActorNetwork, self).__init__()
-
-        self.input_num = input_dims
-        self.output_num = n_actions
-        isExist = os.path.exists(chkpt_dir)
-
-        if not isExist:
-            os.makedirs(chkpt_dir)
+    
+        self.input_dims = input_dims
+        self.n_actions = n_actions
         self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
         self.actor = nn.Sequential(
-                nn.Linear(self.input_num, fc1_dims),
+                nn.Conv2d(1,conv_size[0], kernel_size=3, stride=1,padding=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(conv_size[0],conv_size[1], kernel_size=3, stride=1,padding=1),
+                nn.ReLU(inplace=True),
+                nn.Linear(conv_size[1]*self.input_dims*self.input_dims, fc_size[0]),
                 nn.ReLU(),
-                nn.Linear(fc1_dims, fc2_dims),
+                nn.Linear(fc_size[0], fc_size[1]),
                 nn.ReLU(),
-                nn.Linear(fc2_dims, self.output_num),
-                nn.Softmax(dim=1)
+                nn.Linear(fc_size[1], self.n_actions),
+                nn.Softmax(dim=-1)
         )
-        # self.fc1 = nn.Linear(self.input_num, fc1_dims)
-        # self.fc2 = nn.Linear(fc1_dims,fc2_dims)
-        # self.head = nn.Linear(fc2_dims,self.output_num)
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def forward(self, state):
-        state = state.reshape(-1,self.input_num)
+        state = state.reshape(-1,1,self.input_dims, self.input_dims)
         dist = self.actor(state)
         dist = Categorical(dist)
-        
         return dist
 
     def save_checkpoint(self):
@@ -90,35 +85,26 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=1024, fc2_dims=128,
-            chkpt_dir='tmp/ppo'): 
+    def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
+            chkpt_dir='tmp/ppo'):
         super(CriticNetwork, self).__init__()
 
-        self.input_num = input_dims
-
-        isExist = os.path.exists(chkpt_dir)
-
-        if not isExist:
-            os.makedirs(chkpt_dir)
         self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
         self.critic = nn.Sequential(
-                nn.Linear(self.input_num, fc1_dims),
+                nn.Linear(*input_dims, fc1_dims),
                 nn.ReLU(),
                 nn.Linear(fc1_dims, fc2_dims),
                 nn.ReLU(),
                 nn.Linear(fc2_dims, 1)
         )
-        # self.fc1 = nn.Linear(self.input_num, fc1_dims)
-        # self.fc2 = nn.Linear(fc1_dims,fc2_dims)
-        # self.head = nn.Linear(fc2_dims,1)
 
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def forward(self, state):
-        state = state.reshape(-1,self.input_num)
         value = self.critic(state)
+
         return value
 
     def save_checkpoint(self):
@@ -129,21 +115,21 @@ class CriticNetwork(nn.Module):
 
 class Agent:
     def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
-            policy_clip=0.2, batch_size=64, n_epochs=10, chkpt_dir='tmp/ppo'):
+            policy_clip=0.2, batch_size=64, n_epochs=10):
         self.gamma = gamma
         self.policy_clip = policy_clip
         self.n_epochs = n_epochs
         self.gae_lambda = gae_lambda
 
-        self.actor = ActorNetwork(n_actions, input_dims, alpha, chkpt_dir=chkpt_dir)
-        self.critic = CriticNetwork(input_dims, alpha, chkpt_dir=chkpt_dir)
+        self.actor = ActorNetwork(n_actions, input_dims, alpha)
+        self.critic = CriticNetwork(input_dims, alpha)
         self.memory = PPOMemory(batch_size)
        
     def remember(self, state, action, probs, vals, reward, done):
         self.memory.store_memory(state, action, probs, vals, reward, done)
 
     def save_models(self):
-        # print('... saving models ...')
+        print('... saving models ...')
         self.actor.save_checkpoint()
         self.critic.save_checkpoint()
 
@@ -153,11 +139,12 @@ class Agent:
         self.critic.load_checkpoint()
 
     def choose_action(self, observation):
-        state = T.tensor([observation], dtype=T.float).to(self.actor.device)
+        state = T.tensor([observation[0]], dtype=T.float).to(self.actor.device)
 
         dist = self.actor(state)
         value = self.critic(state)
         action = dist.sample()
+
         probs = T.squeeze(dist.log_prob(action)).item()
         action = T.squeeze(action).item()
         value = T.squeeze(value).item()

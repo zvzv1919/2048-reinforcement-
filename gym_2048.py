@@ -53,19 +53,26 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
         self.action_space = spaces.Discrete(4)
         # Suppose that the maximum tile is as if you have powers of 2 across the board.
         layers = self.squares
-        self.observation_space = spaces.Box(0, 1, (self.squares, ), dtype=np.int)
-        self.set_illegal_move_reward(-100)
+        self.observation_space = spaces.Box(0, 1, (self.w, self.h, layers), dtype=np.int)
+        self.set_illegal_move_reward(0)
         self.set_max_tile(None)
 
-        self.max_illegal = 10     # max number of illegal actions
+        # self.max_illegal = 10     # max number of illegal actions
+        self.threshold = 0.2
         self.num_illegal = 0
-
+        self.min_illeage = 5
         # Initialise seed
         self.seed()
 
         # # Reset ready for a game
         # self.reset()
-    
+    def _check_if_corn(self):
+        if np.max(self.Matrix) == self.Matrix[0,0] or np.max(self.Matrix,) == self.Matrix[-1,0] \
+                or np.max(self.Matrix) == self.Matrix[-1,-1] or np.max(self.Matrix) == self.Matrix[0,-1]:
+            return True
+        else:
+            return False
+
     def _get_info(self, info=None):
         if not info:
             info = {}
@@ -75,7 +82,6 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
         info['highest'] = self.highest()
         info['score'] = self.score
         info['steps'] = self.steps
-        info['num_illegal'] = self.num_illegal
         return info
 
     def seed(self, seed=None):
@@ -88,7 +94,7 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
         # Guess that the maximum reward is also 2**squares though you'll probably never get that.
         # (assume that illegal move reward is the lowest value that can be returned
         self.illegal_move_reward = reward
-        self.reward_range = (self.illegal_move_reward, float(2**self.squares))
+        self.reward_range = (0, float(2**self.squares))
 
     def set_max_tile(self, max_tile):
         """Define the maximum tile that will end the game (e.g. 2048). None means no limit.
@@ -107,18 +113,21 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
             'illegal_move': False,
         }
         try:
+            corner_pre = self._check_if_corn()
             score = float(self.move(action))
+            corner_post = self._check_if_corn()
             self.score += score
             assert score <= 2**(self.w*self.h)
             self.add_tile()
             done = self.isend()
             reward = float(score)
+            if (corner_pre == False) and (corner_post == True):
+                reward += self.steps
+            if (corner_post == False) and (corner_pre == True):
+                reward -= self.steps
+            if reward<0:
+                reward = 0
 
-            # add extra reward if highest is in the corner
-            if np.max(self.Matrix) == self.Matrix[0,0] or np.max(self.Matrix,) == self.Matrix[-1,0] \
-                or np.max(self.Matrix) == self.Matrix[-1,-1] or np.max(self.Matrix) == self.Matrix[0,-1]:
-                reward += np.max(self.Matrix)
-            
         except IllegalMove as e:
             logging.debug("Illegal move")
             info['illegal_move'] = True
@@ -128,11 +137,8 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
                 done = False
             reward = self.illegal_move_reward
             self.num_illegal += 1
-            info['num_illegal'] = self.num_illegal
-            if self.num_illegal >= self.max_illegal:   # exceed the maximum number of illegal actions
+            if self.num_illegal >= max(self.min_illeage,self.steps * self.threshold):   # exceed the maximum number of illegal actions
                 done = True
-                info['num_illegal'] = 0
-
         info = self._get_info(info)
 
         # Return observation (board state), reward, done and info dict
@@ -143,6 +149,7 @@ class Game2048Env(gym.Env):   # directions 0, 1, 2, 3 are up, right, down, left
         self.score = 0
         self.steps = 0
         self.num_illegal = 0
+
         logging.debug("Adding tiles")
         self.add_tile()
         self.add_tile()
